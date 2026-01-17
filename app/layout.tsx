@@ -1,12 +1,28 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import './globals.css';
+import type { Metadata } from "next";
+import { Playfair_Display, DM_Sans, JetBrains_Mono } from "next/font/google";
+import "./globals.css";
 
-const inter = Inter({ subsets: ['latin'] });
+const playfair = Playfair_Display({
+  variable: "--font-heading",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const dmSans = DM_Sans({
+  variable: "--font-body",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const jetbrains = JetBrains_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: 'Guardian Mesh - AI Scam Detection',
-  description: 'Real-time phone call scam detection powered by AI agents',
+  title: "Interview Coach | AI-Powered Practice Sessions",
+  description: "Practice your interview skills with an AI interviewer tailored to your target role",
 };
 
 export default function RootLayout({
@@ -16,7 +32,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-guardian-dark text-white min-h-screen`}>
+      <body className={`${playfair.variable} ${dmSans.variable} ${jetbrains.variable} antialiased`}>
+        <div className="bg-mesh" />
         {children}
       </body>
     </html>
