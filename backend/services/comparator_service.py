@@ -61,12 +61,24 @@ IMPORTANT: You must respond with valid JSON matching this exact schema:
 Only declare a tie if both answers are genuinely equal in quality. Be decisive."""
 
 
+def _format_model_name(model: str) -> str:
+    """
+    Format model name for display by removing provider prefix.
+    Example: "openai/gpt-5.2-chat" -> "gpt-5.2-chat"
+    """
+    if "/" in model:
+        return model.split("/", 1)[1]
+    return model
+
+
 async def evaluate_responses(
     question: str,
     resume: str,
     job_description: str,
     alpha_answer: str,
     beta_answer: str,
+    alpha_model: str = "Alpha",
+    beta_model: str = "Beta",
 ) -> EvaluationResult:
     """
     Compare two challenger responses and determine the winner.
@@ -77,11 +89,18 @@ async def evaluate_responses(
         job_description: The job description
         alpha_answer: Response from Challenger Alpha
         beta_answer: Response from Challenger Beta
+        alpha_model: Name/identifier of the Alpha model
+        beta_model: Name/identifier of the Beta model
 
     Returns:
         EvaluationResult with winner, scores, and reasoning
     """
+    # Clean up model names for display
+    alpha_name = _format_model_name(alpha_model)
+    beta_name = _format_model_name(beta_model)
+
     logger.info(f"Starting evaluation with model: {settings.comparator_model}")
+    logger.info(f"Comparing {alpha_name} vs {beta_name}")
 
     user_prompt = f"""Compare these two interview answers and determine which is better.
 
@@ -96,17 +115,19 @@ async def evaluate_responses(
 
 ---
 
-## ANSWER FROM ALPHA
+## ANSWER FROM {alpha_name} (referred to as "alpha" in your response)
 {alpha_answer}
 
 ---
 
-## ANSWER FROM BETA
+## ANSWER FROM {beta_name} (referred to as "beta" in your response)
 {beta_answer}
 
 ---
 
-Evaluate both answers carefully and provide your judgment as JSON."""
+Evaluate both answers carefully. In your reasoning and key_differentiator, refer to the models by their names ({alpha_name} and {beta_name}) rather than "Alpha" and "Beta".
+
+Provide your judgment as JSON."""
 
     try:
         response = await client.chat.completions.create(

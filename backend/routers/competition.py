@@ -140,6 +140,8 @@ class JudgeRequest(BaseModel):
     )
     alpha_answer: str = Field(..., min_length=1, description="Answer from Alpha")
     beta_answer: str = Field(..., min_length=1, description="Answer from Beta")
+    alpha_model: str = Field(default="Alpha", description="Model name for Alpha")
+    beta_model: str = Field(default="Beta", description="Model name for Beta")
 
 
 class JudgeResponse(BaseModel):
@@ -169,6 +171,8 @@ async def judge_competition(request: JudgeRequest):
             job_description=request.job_description,
             alpha_answer=request.alpha_answer,
             beta_answer=request.beta_answer,
+            alpha_model=request.alpha_model,
+            beta_model=request.beta_model,
         )
 
         logger.info(f"Judgment complete: {evaluation.winner} wins")

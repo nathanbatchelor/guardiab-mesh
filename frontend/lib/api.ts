@@ -22,6 +22,8 @@ export interface JudgeRequest {
   job_description: string;
   alpha_answer: string;
   beta_answer: string;
+  alpha_model?: string;
+  beta_model?: string;
 }
 
 export interface JudgeResponse {

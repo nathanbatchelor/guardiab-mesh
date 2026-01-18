@@ -63,12 +63,29 @@ export default function InterviewArena() {
   const [interviewQuestion, setInterviewQuestion] = useState<string>("");
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [competitionTiming, setCompetitionTiming] = useState<{
-    alpha?: { first_token_ms: number; complete_ms: number; tokens_per_second: number };
-    beta?: { first_token_ms: number; complete_ms: number; tokens_per_second: number };
+    alpha?: { model: string; first_token_ms: number; complete_ms: number; tokens_per_second: number };
+    beta?: { model: string; first_token_ms: number; complete_ms: number; tokens_per_second: number };
   } | null>(null);
   const [resumeTextForCompetition, setResumeTextForCompetition] = useState("");
   const [judgeResult, setJudgeResult] = useState<JudgeResponse | null>(null);
   const [isJudging, setIsJudging] = useState(false);
+
+  // Helper to format model name for display (e.g., "openai/gpt-4o" -> "GPT-4o")
+  const formatModelName = (model: string | undefined): string => {
+    if (!model) return "Unknown";
+    // Remove provider prefix (e.g., "openai/", "google/", "deepseek/")
+    const name = model.split("/").pop() || model;
+    // Capitalize and clean up common patterns
+    return name
+      .replace(/-/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+      .replace(/Gpt/g, "GPT")
+      .replace(/Exp/g, "Exp")
+      .trim();
+  };
+
+  const alphaModelName = formatModelName(competitionTiming?.alpha?.model);
+  const betaModelName = formatModelName(competitionTiming?.beta?.model);
 
   const currentRound = rounds[currentRoundIndex];
 
@@ -203,6 +220,8 @@ export default function InterviewArena() {
                 job_description: jobDesc,
                 alpha_answer: finalAlphaAnswer,
                 beta_answer: finalBetaAnswer,
+                alpha_model: data.timing?.alpha?.model,
+                beta_model: data.timing?.beta?.model,
               });
 
               setJudgeResult(result);
@@ -781,10 +800,10 @@ export default function InterviewArena() {
                   </Avatar>
                   <div>
                     <h3 className="font-heading text-xl text-cyan-400">
-                      Challenger Alpha
+                      {alphaModelName}
                     </h3>
                     <p className="text-sm text-slate-light">
-                      Strategic Analyst
+                      Challenger Alpha
                     </p>
                   </div>
                 </div>
@@ -848,10 +867,10 @@ export default function InterviewArena() {
                   </Avatar>
                   <div>
                     <h3 className="font-heading text-xl text-rose-400">
-                      Challenger Beta
+                      {betaModelName}
                     </h3>
                     <p className="text-sm text-slate-light">
-                      Creative Innovator
+                      Challenger Beta
                     </p>
                   </div>
                 </div>
@@ -939,7 +958,9 @@ export default function InterviewArena() {
                   }`}>
                     <div className="flex items-center justify-center gap-2 mb-2">
                       <Brain className="w-5 h-5 text-cyan-400" />
-                      <span className="text-cyan-400 font-medium">Alpha</span>
+                      <span className="text-cyan-400 font-medium truncate max-w-[120px]" title={alphaModelName}>
+                        {alphaModelName}
+                      </span>
                       {judgeResult.winner === "alpha" && (
                         <Trophy className="w-4 h-4 text-amber-warm" />
                       )}
@@ -988,7 +1009,9 @@ export default function InterviewArena() {
                   }`}>
                     <div className="flex items-center justify-center gap-2 mb-2">
                       <Zap className="w-5 h-5 text-rose-400" />
-                      <span className="text-rose-400 font-medium">Beta</span>
+                      <span className="text-rose-400 font-medium truncate max-w-[120px]" title={betaModelName}>
+                        {betaModelName}
+                      </span>
                       {judgeResult.winner === "beta" && (
                         <Trophy className="w-4 h-4 text-amber-warm" />
                       )}
@@ -1054,7 +1077,7 @@ export default function InterviewArena() {
                   <span className="font-heading text-xl text-pearl">
                     {judgeResult?.winner === "tie" 
                       ? "It's a Tie!" 
-                      : `${judgeResult?.winner === "alpha" ? "Alpha" : "Beta"} Wins!`}
+                      : `${judgeResult?.winner === "alpha" ? alphaModelName : betaModelName} Wins!`}
                   </span>
                   <Trophy className="w-6 h-6 text-emerald-accent" />
                 </div>
