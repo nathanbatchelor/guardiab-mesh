@@ -483,10 +483,10 @@ export default function InterviewArena() {
                 <Brain className="w-8 h-8 text-white" />
               </div>
               <h3 className="font-heading text-lg text-cyan-400 mb-2">
-                Challenger Alpha
+                GPT 5.2 Chat
               </h3>
               <p className="text-sm text-slate-light">
-                Strategic & analytical approach
+                Challenger Alpha
               </p>
             </Card>
 
@@ -498,7 +498,7 @@ export default function InterviewArena() {
                 The Interviewer
               </h3>
               <p className="text-sm text-slate-light">
-                Judges & synthesizes the best answer
+                Powered by Gemini 3
               </p>
             </Card>
 
@@ -507,10 +507,10 @@ export default function InterviewArena() {
                 <Zap className="w-8 h-8 text-white" />
               </div>
               <h3 className="font-heading text-lg text-rose-400 mb-2">
-                Challenger Beta
+                Deepseek v3.2
               </h3>
               <p className="text-sm text-slate-light">
-                Creative & intuitive approach
+                Challenger Beta
               </p>
             </Card>
           </div>
