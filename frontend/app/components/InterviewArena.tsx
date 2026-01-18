@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,9 @@ import {
   MessageSquare,
   FileText,
   Briefcase,
+  Star,
 } from "lucide-react";
+import { judgeCompetition, JudgeResponse } from "@/lib/api";
 
 interface Round {
   id: number;
@@ -65,6 +67,8 @@ export default function InterviewArena() {
     beta?: { first_token_ms: number; complete_ms: number; tokens_per_second: number };
   } | null>(null);
   const [resumeTextForCompetition, setResumeTextForCompetition] = useState("");
+  const [judgeResult, setJudgeResult] = useState<JudgeResponse | null>(null);
+  const [isJudging, setIsJudging] = useState(false);
 
   const currentRound = rounds[currentRoundIndex];
 
@@ -103,7 +107,7 @@ export default function InterviewArena() {
       const alphaExpectedLength = 500; // Estimate for progress
       const betaExpectedLength = 500;
 
-      eventSource.onmessage = (event) => {
+      eventSource.onmessage = async (event) => {
         const data = JSON.parse(event.data);
 
         if (data.type === "chunk") {
@@ -142,45 +146,112 @@ export default function InterviewArena() {
           setTypingProgress({ ai1: 100, ai2: 100 });
           setCompetitionTiming(data.timing);
 
-          // Determine winner based on errors
+          const finalAlphaAnswer = data.answers?.alpha || alphaAnswer;
+          const finalBetaAnswer = data.answers?.beta || betaAnswer;
+
+          // Determine winner based on errors first
           const alphaFailed = data.timing?.alpha?.failed;
           const betaFailed = data.timing?.beta?.failed;
-          let winner: "ai1" | "ai2" | null = null;
 
           if (alphaFailed && !betaFailed) {
-            winner = "ai2";
-          } else if (betaFailed && !alphaFailed) {
-            winner = "ai1";
-          }
-
-          // Move to judging phase briefly, then complete
-          setRounds((prev) =>
-            prev.map((r, i) =>
-              i === currentRoundIndex ? { ...r, status: "judging" } : r
-            )
-          );
-
-          setTimeout(() => {
+            // Beta wins by default
             setRounds((prev) =>
               prev.map((r, i) =>
                 i === currentRoundIndex
                   ? {
                       ...r,
                       status: "complete",
-                      winner,
-                      ai1Answer: data.answers?.alpha || alphaAnswer,
-                      ai2Answer: data.answers?.beta || betaAnswer,
-                      bestAnswer: winner
-                        ? `${winner === "ai1" ? "Alpha" : "Beta"} wins by default (opponent failed)`
-                        : "Both challengers completed successfully - judge will decide",
-                      explanation: winner
-                        ? `${winner === "ai1" ? "Beta" : "Alpha"} encountered an error and automatically loses this round.`
-                        : `Alpha completed in ${data.timing?.alpha?.complete_ms}ms, Beta in ${data.timing?.beta?.complete_ms}ms.`,
+                      winner: "ai2",
+                      ai1Answer: finalAlphaAnswer,
+                      ai2Answer: finalBetaAnswer,
+                      bestAnswer: "Beta wins by default (Alpha encountered an error)",
+                      explanation: "Alpha encountered an error and automatically loses this round.",
                     }
                   : r
               )
             );
-          }, 1500);
+          } else if (betaFailed && !alphaFailed) {
+            // Alpha wins by default
+            setRounds((prev) =>
+              prev.map((r, i) =>
+                i === currentRoundIndex
+                  ? {
+                      ...r,
+                      status: "complete",
+                      winner: "ai1",
+                      ai1Answer: finalAlphaAnswer,
+                      ai2Answer: finalBetaAnswer,
+                      bestAnswer: "Alpha wins by default (Beta encountered an error)",
+                      explanation: "Beta encountered an error and automatically loses this round.",
+                    }
+                  : r
+              )
+            );
+          } else {
+            // Both completed - call the judge API
+            setRounds((prev) =>
+              prev.map((r, i) =>
+                i === currentRoundIndex ? { ...r, status: "judging" } : r
+              )
+            );
+            setIsJudging(true);
+
+            try {
+              const result = await judgeCompetition({
+                question: question,
+                resume: resume,
+                job_description: jobDesc,
+                alpha_answer: finalAlphaAnswer,
+                beta_answer: finalBetaAnswer,
+              });
+
+              setJudgeResult(result);
+
+              // Map winner from API (alpha/beta/tie) to UI (ai1/ai2/null)
+              let uiWinner: "ai1" | "ai2" | null = null;
+              if (result.winner === "alpha") {
+                uiWinner = "ai1";
+              } else if (result.winner === "beta") {
+                uiWinner = "ai2";
+              }
+
+              setRounds((prev) =>
+                prev.map((r, i) =>
+                  i === currentRoundIndex
+                    ? {
+                        ...r,
+                        status: "complete",
+                        winner: uiWinner,
+                        ai1Answer: finalAlphaAnswer,
+                        ai2Answer: finalBetaAnswer,
+                        bestAnswer: result.key_differentiator,
+                        explanation: result.reasoning,
+                      }
+                    : r
+                )
+              );
+            } catch (error) {
+              console.error("Judge API error:", error);
+              // Fallback if judge fails
+              setRounds((prev) =>
+                prev.map((r, i) =>
+                  i === currentRoundIndex
+                    ? {
+                        ...r,
+                        status: "complete",
+                        winner: null,
+                        ai1Answer: finalAlphaAnswer,
+                        ai2Answer: finalBetaAnswer,
+                        bestAnswer: "Both challengers completed their answers",
+                        explanation: `Judging failed. Alpha completed in ${data.timing?.alpha?.complete_ms}ms, Beta in ${data.timing?.beta?.complete_ms}ms.`,
+                      }
+                    : r
+                )
+              );
+            } finally {
+              setIsJudging(false);
+            }
+          }
         }
       };
 
@@ -349,6 +420,8 @@ export default function InterviewArena() {
     setSubmissionError(null);
     setCompetitionTiming(null);
     setResumeTextForCompetition("");
+    setJudgeResult(null);
+    setIsJudging(false);
   };
 
   // Check if form is valid - both job description and resume are required
@@ -855,12 +928,98 @@ export default function InterviewArena() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Score Comparison */}
+              {judgeResult && (
+                <div className="grid grid-cols-3 gap-4">
+                  {/* Alpha Score */}
+                  <div className={`rounded-xl p-4 text-center border ${
+                    judgeResult.winner === "alpha" 
+                      ? "bg-cyan-500/20 border-cyan-500/50" 
+                      : "bg-slate-deep/30 border-slate-mid/30"
+                  }`}>
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Brain className="w-5 h-5 text-cyan-400" />
+                      <span className="text-cyan-400 font-medium">Alpha</span>
+                      {judgeResult.winner === "alpha" && (
+                        <Trophy className="w-4 h-4 text-amber-warm" />
+                      )}
+                    </div>
+                    <div className="flex items-center justify-center gap-1">
+                      {Array.from({ length: 10 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-3 h-3 ${
+                            i < judgeResult.alpha_score
+                              ? "text-amber-warm fill-amber-warm"
+                              : "text-slate-mid"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-2xl font-bold text-pearl mt-2">
+                      {judgeResult.alpha_score}/10
+                    </p>
+                  </div>
+
+                  {/* Winner Badge */}
+                  <div className="flex items-center justify-center">
+                    <div className={`rounded-full p-4 ${
+                      judgeResult.winner === "tie"
+                        ? "bg-amber-warm/20"
+                        : judgeResult.winner === "alpha"
+                        ? "bg-cyan-500/20"
+                        : "bg-rose-500/20"
+                    }`}>
+                      <Trophy className={`w-10 h-10 ${
+                        judgeResult.winner === "tie"
+                          ? "text-amber-warm"
+                          : judgeResult.winner === "alpha"
+                          ? "text-cyan-400"
+                          : "text-rose-400"
+                      }`} />
+                    </div>
+                  </div>
+
+                  {/* Beta Score */}
+                  <div className={`rounded-xl p-4 text-center border ${
+                    judgeResult.winner === "beta" 
+                      ? "bg-rose-500/20 border-rose-500/50" 
+                      : "bg-slate-deep/30 border-slate-mid/30"
+                  }`}>
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Zap className="w-5 h-5 text-rose-400" />
+                      <span className="text-rose-400 font-medium">Beta</span>
+                      {judgeResult.winner === "beta" && (
+                        <Trophy className="w-4 h-4 text-amber-warm" />
+                      )}
+                    </div>
+                    <div className="flex items-center justify-center gap-1">
+                      {Array.from({ length: 10 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`w-3 h-3 ${
+                            i < judgeResult.beta_score
+                              ? "text-amber-warm fill-amber-warm"
+                              : "text-slate-mid"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-2xl font-bold text-pearl mt-2">
+                      {judgeResult.beta_score}/10
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <Separator className="bg-slate-mid/30" />
+
               {/* Why this answer was better */}
               <div className="bg-slate-deep/30 rounded-xl p-4 border border-slate-mid/30">
                 <div className="flex items-center gap-2 mb-3">
                   <MessageSquare className="w-5 h-5 text-amber-warm" />
                   <h4 className="font-semibold text-amber-warm">
-                    Interviewer&apos;s Analysis
+                    Judge&apos;s Analysis
                   </h4>
                 </div>
                 <p className="text-pearl leading-relaxed">
@@ -868,37 +1027,39 @@ export default function InterviewArena() {
                 </p>
               </div>
 
-              <Separator className="bg-slate-mid/30" />
-
-              {/* Best Combined Answer */}
-              <div>
-                <div className="flex items-center gap-2 mb-4">
-                  <Trophy className="w-5 h-5 text-amber-warm" />
-                  <h4 className="font-semibold text-pearl">
-                    The Optimal Answer
-                  </h4>
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/50 ml-2">
-                    Best of Both
-                  </Badge>
+              {/* Key Differentiator */}
+              {judgeResult && (
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Trophy className="w-5 h-5 text-amber-warm" />
+                    <h4 className="font-semibold text-pearl">
+                      Key Differentiator
+                    </h4>
+                    <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/50 ml-2">
+                      Deciding Factor
+                    </Badge>
+                  </div>
+                  <div className="bg-gradient-to-br from-emerald-500/10 to-amber-500/10 rounded-xl p-6 border border-emerald-500/20">
+                    <p className="text-pearl leading-relaxed text-lg">
+                      {judgeResult.key_differentiator}
+                    </p>
+                  </div>
                 </div>
-                <div className="bg-gradient-to-br from-emerald-500/10 to-amber-500/10 rounded-xl p-6 border border-emerald-500/20">
-                  <p className="text-pearl leading-relaxed text-lg">
-                    &ldquo;{currentRound.bestAnswer}&rdquo;
-                  </p>
-                </div>
-              </div>
+              )}
 
               {/* Interview Complete - Single question mode */}
               <div className="text-center pt-4">
                 <div className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-amber-warm/20 to-emerald-accent/20 rounded-full border border-amber-warm/30">
                   <Trophy className="w-6 h-6 text-amber-warm" />
                   <span className="font-heading text-xl text-pearl">
-                    Question Generated!
+                    {judgeResult?.winner === "tie" 
+                      ? "It's a Tie!" 
+                      : `${judgeResult?.winner === "alpha" ? "Alpha" : "Beta"} Wins!`}
                   </span>
                   <Trophy className="w-6 h-6 text-emerald-accent" />
                 </div>
                 <p className="text-slate-light text-sm mt-3 mb-4">
-                  Competition complete! Review the answers above.
+                  Competition complete! Review the answers and analysis above.
                 </p>
                 <Button
                   onClick={handleReset}

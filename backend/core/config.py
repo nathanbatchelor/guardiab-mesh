@@ -19,13 +19,16 @@ class Settings(BaseSettings):
     challenger_alpha_model: str = "openai/gpt-5.2-chat"
     challenger_beta_model: str = "deepseek/deepseek-v3.2"
 
+    # Comparator Model (LLM-as-a-Judge)
+    comparator_model: str = "google/gemini-3-flash-preview"
+
     # Application Settings
     app_name: str = "Interview Arena API"
     app_version: str = "1.0.0"
     debug: bool = False
     log_level: str = "INFO"
 
-    # CORS Settings (required - comma-separated list)
+    # CORS Settings (required - JSON formatted list)
     cors_origins: list[str]
 
     model_config = {

@@ -1,11 +1,11 @@
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from core import settings, get_logger
 
 logger = get_logger(__name__)
 
-# Initialize OpenRouter client using OpenAI SDK
-client = OpenAI(
+# Initialize OpenRouter client using async OpenAI SDK
+client = AsyncOpenAI(
     base_url=settings.openrouter_base_url,
     api_key=settings.openrouter_api_key,
 )
@@ -52,7 +52,7 @@ async def generate_interview_question(job_description: str, resume: str) -> str:
     logger.info("Generating interview question")
     logger.debug(f"Using model: {settings.interviewer_model}")
 
-    response = client.chat.completions.create(
+    response = await client.chat.completions.create(
         model=settings.interviewer_model,
         messages=[
             {"role": "system", "content": QUESTION_GENERATOR_SYSTEM_PROMPT},

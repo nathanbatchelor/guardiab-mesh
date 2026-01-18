@@ -16,6 +16,22 @@ export interface SubmissionResponse {
   status: string;
 }
 
+export interface JudgeRequest {
+  question: string;
+  resume: string;
+  job_description: string;
+  alpha_answer: string;
+  beta_answer: string;
+}
+
+export interface JudgeResponse {
+  winner: "alpha" | "beta" | "tie";
+  reasoning: string;
+  alpha_score: number;
+  beta_score: number;
+  key_differentiator: string;
+}
+
 export interface ApiError {
   detail: string;
 }
@@ -54,6 +70,29 @@ export async function submitInterview(
       const axiosError = error as AxiosError<ApiError>;
       throw new Error(
         axiosError.response?.data?.detail || "Failed to submit interview data"
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Call the LLM-as-a-Judge to evaluate competition answers.
+ */
+export async function judgeCompetition(
+  request: JudgeRequest
+): Promise<JudgeResponse> {
+  try {
+    const response = await api.post<JudgeResponse>(
+      "/api/v1/competition/judge",
+      request
+    );
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError<ApiError>;
+      throw new Error(
+        axiosError.response?.data?.detail || "Failed to judge competition"
       );
     }
     throw error;

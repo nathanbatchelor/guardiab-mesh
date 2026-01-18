@@ -11,6 +11,7 @@ from services.challenger_service import (
     create_session,
     get_session,
 )
+from services.comparator_service import evaluate_responses, EvaluationResult
 
 logger = get_logger(__name__)
 
@@ -127,3 +128,63 @@ async def get_competition_status(session_id: str):
         "beta_result": session.beta_result,
         "created_at": session.created_at,
     }
+
+
+class JudgeRequest(BaseModel):
+    """Request to judge/evaluate competition answers."""
+
+    question: str = Field(..., min_length=1, description="The interview question")
+    resume: str = Field(..., min_length=1, description="The candidate's resume")
+    job_description: str = Field(
+        ..., min_length=1, description="The job description"
+    )
+    alpha_answer: str = Field(..., min_length=1, description="Answer from Alpha")
+    beta_answer: str = Field(..., min_length=1, description="Answer from Beta")
+
+
+class JudgeResponse(BaseModel):
+    """Response from the judge evaluation."""
+
+    winner: str
+    reasoning: str
+    alpha_score: int
+    beta_score: int
+    key_differentiator: str
+
+
+@router.post("/judge", response_model=JudgeResponse)
+async def judge_competition(request: JudgeRequest):
+    """
+    Judge/evaluate two competition answers using LLM-as-a-Judge.
+
+    The comparator agent will analyze both answers and declare a winner
+    based on relevance, specificity, communication, and fit for the role.
+    """
+    logger.info("Starting competition judgment")
+
+    try:
+        evaluation: EvaluationResult = await evaluate_responses(
+            question=request.question,
+            resume=request.resume,
+            job_description=request.job_description,
+            alpha_answer=request.alpha_answer,
+            beta_answer=request.beta_answer,
+        )
+
+        logger.info(f"Judgment complete: {evaluation.winner} wins")
+
+        return JudgeResponse(
+            winner=evaluation.winner,
+            reasoning=evaluation.reasoning,
+            alpha_score=evaluation.alpha_score,
+            beta_score=evaluation.beta_score,
+            key_differentiator=evaluation.key_differentiator,
+        )
+
+    except ValueError as e:
+        logger.error(f"Judgment failed with validation error: {e}")
+        raise HTTPException(status_code=422, detail=str(e))
+
+    except Exception as e:
+        logger.error(f"Judgment failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
