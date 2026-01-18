@@ -53,79 +53,147 @@ export default function InterviewArena() {
 
   const [isStarted, setIsStarted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCompeting, setIsCompeting] = useState(false);
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const [rounds, setRounds] = useState<Round[]>([]);
   const [typingProgress, setTypingProgress] = useState({ ai1: 0, ai2: 0 });
   const [displayedText, setDisplayedText] = useState({ ai1: "", ai2: "" });
   const [interviewQuestion, setInterviewQuestion] = useState<string>("");
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [competitionTiming, setCompetitionTiming] = useState<{
+    alpha?: { first_token_ms: number; complete_ms: number; tokens_per_second: number };
+    beta?: { first_token_ms: number; complete_ms: number; tokens_per_second: number };
+  } | null>(null);
+  const [resumeTextForCompetition, setResumeTextForCompetition] = useState("");
 
   const currentRound = rounds[currentRoundIndex];
 
-  // Typing effect placeholder - will be replaced when analyzer agents are implemented
-  // For now, shows a waiting state since analyzer agents are not yet created
-  useEffect(() => {
-    if (!currentRound || currentRound.status !== "competing") return;
+  // Start competition streaming when round enters "competing" status
+  const startCompetition = async (question: string, resume: string, jobDesc: string) => {
+    if (isCompeting) return;
+    setIsCompeting(true);
+    setDisplayedText({ ai1: "", ai2: "" });
+    setTypingProgress({ ai1: 0, ai2: 0 });
 
-    // Placeholder: Analyzer agents will provide real answers here
-    // For now, we just show that the question has been generated and is ready
-    const placeholderAi1 = "[Analyzer Agent Alpha will respond here - agent not yet implemented]";
-    const placeholderAi2 = "[Analyzer Agent Beta will respond here - agent not yet implemented]";
+    try {
+      // Create competition session
+      const createResponse = await fetch(`${API_BASE_URL}/api/v1/competition`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question,
+          resume,
+          job_description: jobDesc,
+        }),
+      });
 
-    const interval = setInterval(() => {
-      setDisplayedText((prev) => {
-        const newAi1 =
-          prev.ai1.length < placeholderAi1.length
-            ? placeholderAi1.slice(0, prev.ai1.length + 3)
-            : prev.ai1;
-        const newAi2 =
-          prev.ai2.length < placeholderAi2.length
-            ? placeholderAi2.slice(0, prev.ai2.length + 2)
-            : prev.ai2;
+      if (!createResponse.ok) {
+        throw new Error("Failed to create competition");
+      }
 
-        setTypingProgress({
-          ai1: (newAi1.length / placeholderAi1.length) * 100,
-          ai2: (newAi2.length / placeholderAi2.length) * 100,
-        });
+      const { session_id } = await createResponse.json();
 
-        if (
-          newAi1.length >= placeholderAi1.length &&
-          newAi2.length >= placeholderAi2.length
-        ) {
-          // Move to judging phase
+      // Connect to SSE stream
+      const eventSource = new EventSource(
+        `${API_BASE_URL}/api/v1/competition/${session_id}/stream`
+      );
+
+      let alphaAnswer = "";
+      let betaAnswer = "";
+      const alphaExpectedLength = 500; // Estimate for progress
+      const betaExpectedLength = 500;
+
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "chunk") {
+          if (data.challenger === "alpha") {
+            alphaAnswer += data.content;
+            setDisplayedText((prev) => ({ ...prev, ai1: alphaAnswer }));
+            setTypingProgress((prev) => ({
+              ...prev,
+              ai1: Math.min((alphaAnswer.length / alphaExpectedLength) * 100, 95),
+            }));
+          } else {
+            betaAnswer += data.content;
+            setDisplayedText((prev) => ({ ...prev, ai2: betaAnswer }));
+            setTypingProgress((prev) => ({
+              ...prev,
+              ai2: Math.min((betaAnswer.length / betaExpectedLength) * 100, 95),
+            }));
+          }
+        }
+
+        if (data.type === "error") {
+          console.error(`${data.challenger} error:`, data.message);
+          // Mark the failing challenger's answer
+          if (data.challenger === "alpha") {
+            alphaAnswer = `[Error: ${data.message}]`;
+            setDisplayedText((prev) => ({ ...prev, ai1: alphaAnswer }));
+          } else {
+            betaAnswer = `[Error: ${data.message}]`;
+            setDisplayedText((prev) => ({ ...prev, ai2: betaAnswer }));
+          }
+        }
+
+        if (data.type === "complete") {
+          eventSource.close();
+          setIsCompeting(false);
+          setTypingProgress({ ai1: 100, ai2: 100 });
+          setCompetitionTiming(data.timing);
+
+          // Determine winner based on errors
+          const alphaFailed = data.timing?.alpha?.failed;
+          const betaFailed = data.timing?.beta?.failed;
+          let winner: "ai1" | "ai2" | null = null;
+
+          if (alphaFailed && !betaFailed) {
+            winner = "ai2";
+          } else if (betaFailed && !alphaFailed) {
+            winner = "ai1";
+          }
+
+          // Move to judging phase briefly, then complete
+          setRounds((prev) =>
+            prev.map((r, i) =>
+              i === currentRoundIndex ? { ...r, status: "judging" } : r
+            )
+          );
+
           setTimeout(() => {
             setRounds((prev) =>
               prev.map((r, i) =>
-                i === currentRoundIndex ? { ...r, status: "judging" } : r
+                i === currentRoundIndex
+                  ? {
+                      ...r,
+                      status: "complete",
+                      winner,
+                      ai1Answer: data.answers?.alpha || alphaAnswer,
+                      ai2Answer: data.answers?.beta || betaAnswer,
+                      bestAnswer: winner
+                        ? `${winner === "ai1" ? "Alpha" : "Beta"} wins by default (opponent failed)`
+                        : "Both challengers completed successfully - judge will decide",
+                      explanation: winner
+                        ? `${winner === "ai1" ? "Beta" : "Alpha"} encountered an error and automatically loses this round.`
+                        : `Alpha completed in ${data.timing?.alpha?.complete_ms}ms, Beta in ${data.timing?.beta?.complete_ms}ms.`,
+                    }
+                  : r
               )
             );
-            // Complete the round with placeholder data
-            setTimeout(() => {
-              setRounds((prev) =>
-                prev.map((r, i) =>
-                  i === currentRoundIndex
-                    ? {
-                        ...r,
-                        status: "complete",
-                        winner: null,
-                        ai1Answer: placeholderAi1,
-                        ai2Answer: placeholderAi2,
-                        bestAnswer: "[Best answer synthesis will be provided when analyzer agents are implemented]",
-                        explanation: "[Judgment and explanation will be provided when analyzer agents are implemented]",
-                      }
-                    : r
-                )
-              );
-            }, 2000);
-          }, 500);
+          }, 1500);
         }
+      };
 
-        return { ai1: newAi1, ai2: newAi2 };
-      });
-    }, 30);
-
-    return () => clearInterval(interval);
-  }, [currentRound?.status, currentRoundIndex]);
+      eventSource.onerror = () => {
+        eventSource.close();
+        setIsCompeting(false);
+        console.error("SSE connection error");
+      };
+    } catch (error) {
+      console.error("Competition error:", error);
+      setIsCompeting(false);
+    }
+  };
 
   const handleStart = async () => {
     setIsLoading(true);
@@ -158,8 +226,10 @@ export default function InterviewArena() {
 
       const data = await response.json();
       const generatedQuestion = data.interview_question;
+      const processedResume = data.resume;
 
       setInterviewQuestion(generatedQuestion);
+      setResumeTextForCompetition(processedResume);
       setIsStarted(true);
       
       const newRound: Round = {
@@ -174,11 +244,10 @@ export default function InterviewArena() {
       };
       setRounds([newRound]);
 
-      // Move to competing phase after a short delay
+      // Move to competing phase after a short delay and start the competition
       setTimeout(() => {
         setRounds([{ ...newRound, status: "competing" }]);
-        setDisplayedText({ ai1: "", ai2: "" });
-        setTypingProgress({ ai1: 0, ai2: 0 });
+        startCompetition(generatedQuestion, processedResume, jobDescription);
       }, 2000);
 
     } catch (error) {
@@ -271,6 +340,7 @@ export default function InterviewArena() {
   const handleReset = () => {
     setIsStarted(false);
     setIsLoading(false);
+    setIsCompeting(false);
     setRounds([]);
     setCurrentRoundIndex(0);
     setDisplayedText({ ai1: "", ai2: "" });
@@ -280,6 +350,8 @@ export default function InterviewArena() {
     setResumeFile(null);
     setInterviewQuestion("");
     setSubmissionError(null);
+    setCompetitionTiming(null);
+    setResumeTextForCompetition("");
   };
 
   // Check if form is valid
@@ -826,7 +898,7 @@ export default function InterviewArena() {
                   <Trophy className="w-6 h-6 text-emerald-accent" />
                 </div>
                 <p className="text-slate-light text-sm mt-3 mb-4">
-                  Analyzer agents will provide competing answers when implemented
+                  Competition complete! Review the answers above.
                 </p>
                 <Button
                   onClick={handleReset}
