@@ -3,6 +3,7 @@ from typing import Optional
 
 from models.submission import SubmissionResponse
 from services.resume_service import process_resume, process_submission
+from services.question_generator import generate_interview_question
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
@@ -16,6 +17,9 @@ async def create_submission(
     """
     Create a new submission with job description and resume.
     Resume can be provided as either a PDF file or raw text (one is required).
+    
+    An AI agent generates a technical interview question based on the job description,
+    which will be used as input for the analyzer agents.
     """
     if not resume_file and not resume_text:
         raise HTTPException(
@@ -38,7 +42,19 @@ async def create_submission(
         assert resume_text is not None
         extracted_text = process_resume(resume_text, is_pdf=False)
 
+    # Generate interview question using AI agent based on resume and job description
+    try:
+        interview_question = await generate_interview_question(
+            job_description=job_description,
+            resume=extracted_text,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate interview question: {str(e)}"
+        )
+
     return process_submission(
         resume_text=extracted_text,
         job_description=job_description,
+        interview_question=interview_question,
     )

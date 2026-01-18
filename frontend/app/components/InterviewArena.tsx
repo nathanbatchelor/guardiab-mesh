@@ -36,42 +36,8 @@ interface Round {
   status: "asking" | "competing" | "judging" | "complete";
 }
 
-// Mock data for demonstration
-const MOCK_QUESTIONS = [
-  "Tell me about a time you had to work under pressure. How did you handle it?",
-  "What's your greatest professional achievement and why does it matter?",
-  "Describe a situation where you had to learn something quickly. How did you approach it?",
-  "How do you handle disagreements with team members?",
-];
-
-const MOCK_ANSWERS = {
-  ai1: [
-    "During my internship at TechCorp, we faced a critical deadline when our main developer fell ill. I stepped up and worked 60-hour weeks, learning new frameworks on the fly. I created a detailed timeline, prioritized ruthlessly, and we shipped on time. This taught me that pressure reveals character.",
-    "I led a migration of our legacy authentication system serving 2 million users. The project required coordinating 5 teams across 3 time zones. We completed it with zero downtime and reduced login times by 40%. It matters because it proved I can lead complex technical initiatives.",
-    "When our team pivoted to React Native, I had no mobile experience. I spent weekends on tutorials, paired with senior devs, and shipped my first feature in 2 weeks. I find that teaching what I learn helps cement knowledge, so I documented everything for future team members.",
-    "I had a disagreement about API design with a senior engineer. Instead of escalating, I created prototypes of both approaches and ran benchmarks. The data showed his approach was actually better for our use case. I learned to let evidence drive decisions, not ego.",
-  ],
-  ai2: [
-    "I managed to deliver three major features in one sprint when our PM suddenly moved the deadline up by two weeks. I renegotiated scope with stakeholders, automated repetitive testing tasks, and held daily standups to catch blockers early. The key was transparent communication about what was realistic.",
-    "I built an internal tool that automated our deployment pipeline, reducing release time from 4 hours to 15 minutes. This saved the team 20+ hours per week. It matters because it showed I identify high-impact problems and solve them without being asked.",
-    "My company adopted Kubernetes overnight due to scaling issues. Within a month, I became the go-to person for container orchestration by taking courses, reading documentation, and experimenting in a personal cluster. Hands-on practice accelerates learning faster than passive study.",
-    "I disagreed with my tech lead about introducing a new framework. Rather than argue, I suggested a time-boxed proof of concept. After two weeks, we found the new framework would require rewriting too much code. The experiment saved us from a costly mistake and strengthened our working relationship.",
-  ],
-};
-
-const MOCK_BEST_ANSWERS = [
-  "During my internship at TechCorp, we faced a critical deadline when our main developer fell ill. I proactively stepped up, creating a detailed timeline and prioritizing ruthlessly. I combined transparent communication with stakeholders about realistic scope while automating repetitive tasks. We shipped on time, and I learned that pressure reveals character while also teaching me the power of clear communication.",
-  "I built an internal deployment automation tool that reduced release time from 4 hours to 15 minutes, saving 20+ team hours weekly. What made this impactful was identifying the problem independently and solving it without being asked. This demonstrates initiative and the ability to find high-leverage opportunities that multiply team productivity.",
-  "When my company adopted Kubernetes overnight, I took a multi-pronged approach: formal courses for theory, documentation for depth, and a personal cluster for hands-on practice. Within a month, I became the team's go-to resource. I then documented my learnings for future team members, multiplying the value of my learning journey.",
-  "I disagreed with my tech lead about introducing a new framework. Instead of arguing based on opinion, I proposed a time-boxed proof of concept. Two weeks of experimentation revealed the migration cost was too high. This data-driven approach saved us from a costly mistake and actually strengthened our working relationship by establishing a pattern for resolving future disagreements.",
-];
-
-const MOCK_EXPLANATIONS = [
-  "AI 1's answer was strong in specificity, but AI 2's emphasis on stakeholder communication and scope negotiation showed more mature project management skills. The combined answer takes the best of both: specific examples with strategic communication.",
-  "AI 2 wins this round because the answer demonstrates initiative and quantifiable impact. However, AI 1's emphasis on team coordination is valuable. The best answer combines both perspectives.",
-  "AI 2's answer was more actionable with specific learning methods. The best answer incorporates AI 1's excellent point about documenting and teaching to cement knowledge.",
-  "Both answers showed emotional intelligence and data-driven decision making. AI 1's approach of creating prototypes and AI 2's time-boxed experiment are both excellent. The combined answer synthesizes these approaches.",
-];
+// API base URL
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type InputMode = "paste" | "upload";
 
@@ -86,39 +52,45 @@ export default function InterviewArena() {
   const [isResumeDragging, setIsResumeDragging] = useState(false);
 
   const [isStarted, setIsStarted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const [rounds, setRounds] = useState<Round[]>([]);
   const [typingProgress, setTypingProgress] = useState({ ai1: 0, ai2: 0 });
   const [displayedText, setDisplayedText] = useState({ ai1: "", ai2: "" });
+  const [interviewQuestion, setInterviewQuestion] = useState<string>("");
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   const currentRound = rounds[currentRoundIndex];
 
-  // Simulate typing effect
+  // Typing effect placeholder - will be replaced when analyzer agents are implemented
+  // For now, shows a waiting state since analyzer agents are not yet created
   useEffect(() => {
     if (!currentRound || currentRound.status !== "competing") return;
 
-    const ai1Full = MOCK_ANSWERS.ai1[currentRoundIndex];
-    const ai2Full = MOCK_ANSWERS.ai2[currentRoundIndex];
+    // Placeholder: Analyzer agents will provide real answers here
+    // For now, we just show that the question has been generated and is ready
+    const placeholderAi1 = "[Analyzer Agent Alpha will respond here - agent not yet implemented]";
+    const placeholderAi2 = "[Analyzer Agent Beta will respond here - agent not yet implemented]";
 
     const interval = setInterval(() => {
       setDisplayedText((prev) => {
         const newAi1 =
-          prev.ai1.length < ai1Full.length
-            ? ai1Full.slice(0, prev.ai1.length + 3)
+          prev.ai1.length < placeholderAi1.length
+            ? placeholderAi1.slice(0, prev.ai1.length + 3)
             : prev.ai1;
         const newAi2 =
-          prev.ai2.length < ai2Full.length
-            ? ai2Full.slice(0, prev.ai2.length + 2)
+          prev.ai2.length < placeholderAi2.length
+            ? placeholderAi2.slice(0, prev.ai2.length + 2)
             : prev.ai2;
 
         setTypingProgress({
-          ai1: (newAi1.length / ai1Full.length) * 100,
-          ai2: (newAi2.length / ai2Full.length) * 100,
+          ai1: (newAi1.length / placeholderAi1.length) * 100,
+          ai2: (newAi2.length / placeholderAi2.length) * 100,
         });
 
         if (
-          newAi1.length >= ai1Full.length &&
-          newAi2.length >= ai2Full.length
+          newAi1.length >= placeholderAi1.length &&
+          newAi2.length >= placeholderAi2.length
         ) {
           // Move to judging phase
           setTimeout(() => {
@@ -127,7 +99,7 @@ export default function InterviewArena() {
                 i === currentRoundIndex ? { ...r, status: "judging" } : r
               )
             );
-            // Simulate judging delay
+            // Complete the round with placeholder data
             setTimeout(() => {
               setRounds((prev) =>
                 prev.map((r, i) =>
@@ -135,11 +107,11 @@ export default function InterviewArena() {
                     ? {
                         ...r,
                         status: "complete",
-                        winner: Math.random() > 0.5 ? "ai1" : "ai2",
-                        ai1Answer: ai1Full,
-                        ai2Answer: ai2Full,
-                        bestAnswer: MOCK_BEST_ANSWERS[currentRoundIndex],
-                        explanation: MOCK_EXPLANATIONS[currentRoundIndex],
+                        winner: null,
+                        ai1Answer: placeholderAi1,
+                        ai2Answer: placeholderAi2,
+                        bestAnswer: "[Best answer synthesis will be provided when analyzer agents are implemented]",
+                        explanation: "[Judgment and explanation will be provided when analyzer agents are implemented]",
                       }
                     : r
                 )
@@ -155,55 +127,73 @@ export default function InterviewArena() {
     return () => clearInterval(interval);
   }, [currentRound?.status, currentRoundIndex]);
 
-  const handleStart = () => {
-    setIsStarted(true);
-    const newRound: Round = {
-      id: 1,
-      question: MOCK_QUESTIONS[0],
-      ai1Answer: "",
-      ai2Answer: "",
-      winner: null,
-      bestAnswer: "",
-      explanation: "",
-      status: "asking",
-    };
-    setRounds([newRound]);
+  const handleStart = async () => {
+    setIsLoading(true);
+    setSubmissionError(null);
 
-    // Simulate asking delay then start competing
-    setTimeout(() => {
-      setRounds([{ ...newRound, status: "competing" }]);
-      setDisplayedText({ ai1: "", ai2: "" });
-      setTypingProgress({ ai1: 0, ai2: 0 });
-    }, 2000);
+    try {
+      // Build form data for the API call
+      const formData = new FormData();
+      formData.append("job_description", jobDescription);
+      
+      if (resumeFile) {
+        formData.append("resume_file", resumeFile);
+      } else if (resumeText.trim()) {
+        formData.append("resume_text", resumeText);
+      } else {
+        // If no resume provided, send empty text (resume is optional per UI)
+        formData.append("resume_text", "No resume provided");
+      }
+
+      // Call the backend to generate the interview question
+      const response = await fetch(`${API_BASE_URL}/api/v1/submissions`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to generate interview question");
+      }
+
+      const data = await response.json();
+      const generatedQuestion = data.interview_question;
+
+      setInterviewQuestion(generatedQuestion);
+      setIsStarted(true);
+      
+      const newRound: Round = {
+        id: 1,
+        question: generatedQuestion,
+        ai1Answer: "",
+        ai2Answer: "",
+        winner: null,
+        bestAnswer: "",
+        explanation: "",
+        status: "asking",
+      };
+      setRounds([newRound]);
+
+      // Move to competing phase after a short delay
+      setTimeout(() => {
+        setRounds([{ ...newRound, status: "competing" }]);
+        setDisplayedText({ ai1: "", ai2: "" });
+        setTypingProgress({ ai1: 0, ai2: 0 });
+      }, 2000);
+
+    } catch (error) {
+      console.error("Error starting interview:", error);
+      setSubmissionError(error instanceof Error ? error.message : "An error occurred");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  // Next round functionality - currently single-question mode
+  // Will be expanded when multiple questions are supported
   const handleNextRound = () => {
-    if (currentRoundIndex >= MOCK_QUESTIONS.length - 1) return;
-
-    const nextIndex = currentRoundIndex + 1;
-    const newRound: Round = {
-      id: nextIndex + 1,
-      question: MOCK_QUESTIONS[nextIndex],
-      ai1Answer: "",
-      ai2Answer: "",
-      winner: null,
-      bestAnswer: "",
-      explanation: "",
-      status: "asking",
-    };
-
-    setRounds((prev) => [...prev, newRound]);
-    setCurrentRoundIndex(nextIndex);
-    setDisplayedText({ ai1: "", ai2: "" });
-    setTypingProgress({ ai1: 0, ai2: 0 });
-
-    setTimeout(() => {
-      setRounds((prev) =>
-        prev.map((r, i) =>
-          i === nextIndex ? { ...r, status: "competing" } : r
-        )
-      );
-    }, 2000);
+    // Single question mode for now - restart with new question generation
+    handleReset();
   };
 
   // Resume file handlers
@@ -280,6 +270,7 @@ export default function InterviewArena() {
 
   const handleReset = () => {
     setIsStarted(false);
+    setIsLoading(false);
     setRounds([]);
     setCurrentRoundIndex(0);
     setDisplayedText({ ai1: "", ai2: "" });
@@ -287,6 +278,8 @@ export default function InterviewArena() {
     setJobDescription("");
     setResumeText("");
     setResumeFile(null);
+    setInterviewQuestion("");
+    setSubmissionError(null);
   };
 
   // Check if form is valid
@@ -496,23 +489,40 @@ export default function InterviewArena() {
           <div className="flex justify-center mt-10 animate-fade-in-up delay-400">
             <Button
               onClick={handleStart}
-              disabled={!isFormValid}
+              disabled={!isFormValid || isLoading}
               size="lg"
               className={`font-semibold px-12 py-6 text-lg rounded-full transition-all duration-300 ${
-                isFormValid
+                isFormValid && !isLoading
                   ? "bg-gradient-to-r from-amber-warm to-amber-glow hover:from-amber-glow hover:to-amber-warm text-midnight hover:scale-105 hover:shadow-lg hover:shadow-amber-warm/30"
                   : "bg-slate-mid text-slate-light cursor-not-allowed"
               }`}
             >
-              <Play className="w-6 h-6 mr-3" />
-              Enter the Arena
+              {isLoading ? (
+                <>
+                  <div className="w-6 h-6 mr-3 border-2 border-midnight/30 border-t-midnight rounded-full animate-spin" />
+                  Generating Question...
+                </>
+              ) : (
+                <>
+                  <Play className="w-6 h-6 mr-3" />
+                  Enter the Arena
+                </>
+              )}
             </Button>
           </div>
           
-          {!isFormValid && (
+          {!isFormValid && !isLoading && (
             <p className="text-center text-slate-light text-sm mt-4 animate-fade-in-up delay-400">
               Please provide a job description to continue
             </p>
+          )}
+
+          {submissionError && (
+            <div className="text-center mt-4 animate-fade-in-up">
+              <p className="text-rose-400 text-sm bg-rose-500/10 border border-rose-500/30 rounded-lg px-4 py-2 inline-block">
+                {submissionError}
+              </p>
+            </div>
           )}
         </div>
       </div>
@@ -551,7 +561,7 @@ export default function InterviewArena() {
               variant="outline"
               className="border-amber-warm/50 text-amber-warm"
             >
-              Round {currentRoundIndex + 1} of {MOCK_QUESTIONS.length}
+              Round {currentRoundIndex + 1}
             </Badge>
           </div>
           <Button
@@ -806,39 +816,27 @@ export default function InterviewArena() {
                 </div>
               </div>
 
-              {/* Next Round Button */}
-              {currentRoundIndex < MOCK_QUESTIONS.length - 1 && (
-                <div className="flex justify-center pt-4">
-                  <Button
-                    onClick={handleNextRound}
-                    size="lg"
-                    className="bg-gradient-to-r from-emerald-accent to-emerald-600 hover:from-emerald-600 hover:to-emerald-accent text-white font-semibold px-8 py-6 text-lg rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-emerald-500/30"
-                  >
-                    <Swords className="w-5 h-5 mr-2" />
-                    Next Round
-                  </Button>
+              {/* Interview Complete - Single question mode */}
+              <div className="text-center pt-4">
+                <div className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-amber-warm/20 to-emerald-accent/20 rounded-full border border-amber-warm/30">
+                  <Trophy className="w-6 h-6 text-amber-warm" />
+                  <span className="font-heading text-xl text-pearl">
+                    Question Generated!
+                  </span>
+                  <Trophy className="w-6 h-6 text-emerald-accent" />
                 </div>
-              )}
-
-              {currentRoundIndex >= MOCK_QUESTIONS.length - 1 && (
-                <div className="text-center pt-4">
-                  <div className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-amber-warm/20 to-emerald-accent/20 rounded-full border border-amber-warm/30">
-                    <Trophy className="w-6 h-6 text-amber-warm" />
-                    <span className="font-heading text-xl text-pearl">
-                      Interview Complete!
-                    </span>
-                    <Trophy className="w-6 h-6 text-emerald-accent" />
-                  </div>
-                  <Button
-                    onClick={handleReset}
-                    variant="outline"
-                    className="mt-6 border-slate-mid text-slate-light hover:text-pearl hover:border-pearl"
-                  >
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    Start New Session
-                  </Button>
-                </div>
-              )}
+                <p className="text-slate-light text-sm mt-3 mb-4">
+                  Analyzer agents will provide competing answers when implemented
+                </p>
+                <Button
+                  onClick={handleReset}
+                  variant="outline"
+                  className="border-slate-mid text-slate-light hover:text-pearl hover:border-pearl"
+                >
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Start New Session
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}

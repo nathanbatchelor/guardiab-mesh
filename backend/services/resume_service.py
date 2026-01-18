@@ -31,14 +31,16 @@ def process_resume(content: str | bytes, is_pdf: bool = False) -> str:
 
 def process_submission(
     resume_text: str,
-    job_description: str
+    job_description: str,
+    interview_question: str,
 ) -> dict:
     """
-    Process the complete submission with resume and job description.
+    Process the complete submission with resume, job description, and interview question.
     Returns processed data ready for the interview arena.
     """
     return {
         "resume": resume_text.strip(),
         "job_description": job_description.strip(),
+        "interview_question": interview_question.strip(),
         "status": "ready"
     }
