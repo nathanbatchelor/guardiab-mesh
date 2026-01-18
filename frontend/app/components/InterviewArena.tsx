@@ -73,11 +73,19 @@ const MOCK_EXPLANATIONS = [
   "Both answers showed emotional intelligence and data-driven decision making. AI 1's approach of creating prototypes and AI 2's time-boxed experiment are both excellent. The combined answer synthesizes these approaches.",
 ];
 
+type InputMode = "paste" | "upload";
+
 export default function InterviewArena() {
-  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  // Job description state
   const [jobDescription, setJobDescription] = useState("");
+
+  // Resume state
+  const [resumeInputMode, setResumeInputMode] = useState<InputMode>("upload");
+  const [resumeText, setResumeText] = useState("");
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [isResumeDragging, setIsResumeDragging] = useState(false);
+
   const [isStarted, setIsStarted] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const [rounds, setRounds] = useState<Round[]>([]);
   const [typingProgress, setTypingProgress] = useState({ ai1: 0, ai2: 0 });
@@ -198,31 +206,77 @@ export default function InterviewArena() {
     }, 2000);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Resume file handlers
+  const handleResumeDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsResumeDragging(true);
+  };
+
+  const handleResumeDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsResumeDragging(false);
+  };
+
+  const handleResumeDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsResumeDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      setResumeFile(file);
+    }
+  };
+
+  const handleResumeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setResumeFile(file);
     }
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) {
-      setResumeFile(file);
-    }
-  };
+  // Toggle component
+  const InputModeToggle = ({
+    mode,
+    setMode,
+    label,
+    color = "amber",
+  }: {
+    mode: InputMode;
+    setMode: (mode: InputMode) => void;
+    label: string;
+    color?: "amber" | "emerald";
+  }) => (
+    <div className="flex items-center gap-2 mb-3">
+      <span className="text-slate-light text-sm">{label}:</span>
+      <div className="flex rounded-lg overflow-hidden bg-slate-deep/50 border border-slate-mid/30">
+        <button
+          type="button"
+          onClick={() => setMode("paste")}
+          className={`px-3 py-1.5 text-sm transition-all ${
+            mode === "paste"
+              ? color === "amber"
+                ? "bg-amber-warm text-midnight font-medium"
+                : "bg-emerald-accent text-midnight font-medium"
+              : "text-slate-light hover:text-pearl"
+          }`}
+        >
+          Paste Text
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("upload")}
+          className={`px-3 py-1.5 text-sm transition-all ${
+            mode === "upload"
+              ? color === "amber"
+                ? "bg-amber-warm text-midnight font-medium"
+                : "bg-emerald-accent text-midnight font-medium"
+              : "text-slate-light hover:text-pearl"
+          }`}
+        >
+          Upload PDF
+        </button>
+      </div>
+    </div>
+  );
 
   const handleReset = () => {
     setIsStarted(false);
@@ -230,8 +284,13 @@ export default function InterviewArena() {
     setCurrentRoundIndex(0);
     setDisplayedText({ ai1: "", ai2: "" });
     setTypingProgress({ ai1: 0, ai2: 0 });
+    setJobDescription("");
+    setResumeText("");
     setResumeFile(null);
   };
+
+  // Check if form is valid
+  const isFormValid = jobDescription.trim().length > 0;
 
   if (!isStarted) {
     return (
@@ -310,6 +369,7 @@ export default function InterviewArena() {
                   <Briefcase className="w-5 h-5 text-emerald-accent" />
                   <h2 className="font-heading text-xl text-pearl">
                     Job Description
+                    <span className="text-rose-400 ml-1">*</span>
                   </h2>
                 </div>
                 <p className="text-sm text-slate-light">
@@ -326,13 +386,16 @@ export default function InterviewArena() {
               </CardContent>
             </Card>
 
-            {/* Resume Upload */}
+            {/* Resume Input */}
             <Card className="glass border-amber-500/30">
               <CardHeader className="pb-4">
                 <div className="flex items-center gap-3">
                   <FileText className="w-5 h-5 text-amber-warm" />
                   <h2 className="font-heading text-xl text-pearl">
                     Your Resume
+                    <span className="text-slate-light text-sm font-normal ml-2">
+                      (optional)
+                    </span>
                   </h2>
                 </div>
                 <p className="text-sm text-slate-light">
@@ -340,67 +403,91 @@ export default function InterviewArena() {
                 </p>
               </CardHeader>
               <CardContent>
-                <div
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={`relative min-h-[250px] rounded-xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center cursor-pointer ${
-                    isDragging
-                      ? "border-amber-warm bg-amber-warm/10"
-                      : resumeFile
-                      ? "border-emerald-accent/50 bg-emerald-accent/5"
-                      : "border-slate-mid/50 bg-slate-deep/30 hover:border-amber-warm/50 hover:bg-slate-deep/50"
-                  }`}
-                >
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.txt"
-                    onChange={handleFileChange}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                <InputModeToggle
+                  mode={resumeInputMode}
+                  setMode={setResumeInputMode}
+                  label="Input method"
+                  color="amber"
+                />
+
+                {resumeInputMode === "paste" ? (
+                  <Textarea
+                    value={resumeText}
+                    onChange={(e) => setResumeText(e.target.value)}
+                    placeholder="Paste your resume content here... Include your experience, skills, education, and achievements."
+                    className="min-h-[220px] bg-slate-deep/50 border-slate-mid/50 text-pearl placeholder:text-slate-light/50 resize-none"
                   />
-                  
-                  {resumeFile ? (
-                    <div className="text-center p-6">
-                      <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-accent/20 flex items-center justify-center">
-                        <FileText className="w-8 h-8 text-emerald-accent" />
+                ) : (
+                  <div
+                    onDragOver={handleResumeDragOver}
+                    onDragLeave={handleResumeDragLeave}
+                    onDrop={handleResumeDrop}
+                    className={`relative min-h-[220px] rounded-xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center cursor-pointer ${
+                      isResumeDragging
+                        ? "border-amber-warm bg-amber-warm/10"
+                        : resumeFile
+                        ? "border-emerald-accent/50 bg-emerald-accent/5"
+                        : "border-slate-mid/50 bg-slate-deep/30 hover:border-amber-warm/50 hover:bg-slate-deep/50"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.txt"
+                      onChange={handleResumeFileChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+
+                    {resumeFile ? (
+                      <div className="text-center p-6">
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-accent/20 flex items-center justify-center">
+                          <FileText className="w-8 h-8 text-emerald-accent" />
+                        </div>
+                        <p className="text-pearl font-medium mb-1">
+                          {resumeFile.name}
+                        </p>
+                        <p className="text-sm text-slate-light">
+                          {(resumeFile.size / 1024).toFixed(1)} KB
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setResumeFile(null);
+                          }}
+                          className="mt-4 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                        >
+                          Remove file
+                        </Button>
                       </div>
-                      <p className="text-pearl font-medium mb-1">{resumeFile.name}</p>
-                      <p className="text-sm text-slate-light">
-                        {(resumeFile.size / 1024).toFixed(1)} KB
-                      </p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setResumeFile(null);
-                        }}
-                        className="mt-4 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
-                      >
-                        Remove file
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="text-center p-6">
-                      <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center transition-colors ${
-                        isDragging ? "bg-amber-warm/20" : "bg-slate-mid/30"
-                      }`}>
-                        <Upload className={`w-8 h-8 transition-colors ${
-                          isDragging ? "text-amber-warm" : "text-slate-light"
-                        }`} />
+                    ) : (
+                      <div className="text-center p-6">
+                        <div
+                          className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center transition-colors ${
+                            isResumeDragging ? "bg-amber-warm/20" : "bg-slate-mid/30"
+                          }`}
+                        >
+                          <Upload
+                            className={`w-8 h-8 transition-colors ${
+                              isResumeDragging ? "text-amber-warm" : "text-slate-light"
+                            }`}
+                          />
+                        </div>
+                        <p className="text-pearl font-medium mb-1">
+                          {isResumeDragging
+                            ? "Drop your resume here"
+                            : "Drag & drop your resume"}
+                        </p>
+                        <p className="text-sm text-slate-light mb-3">
+                          or click to browse
+                        </p>
+                        <p className="text-xs text-slate-light/60">
+                          Supports PDF, DOC, DOCX, TXT
+                        </p>
                       </div>
-                      <p className="text-pearl font-medium mb-1">
-                        {isDragging ? "Drop your resume here" : "Drag & drop your resume"}
-                      </p>
-                      <p className="text-sm text-slate-light mb-3">
-                        or click to browse
-                      </p>
-                      <p className="text-xs text-slate-light/60">
-                        Supports PDF, DOC, DOCX, TXT
-                      </p>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -409,13 +496,24 @@ export default function InterviewArena() {
           <div className="flex justify-center mt-10 animate-fade-in-up delay-400">
             <Button
               onClick={handleStart}
+              disabled={!isFormValid}
               size="lg"
-              className="bg-gradient-to-r from-amber-warm to-amber-glow hover:from-amber-glow hover:to-amber-warm text-midnight font-semibold px-12 py-6 text-lg rounded-full transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-amber-warm/30"
+              className={`font-semibold px-12 py-6 text-lg rounded-full transition-all duration-300 ${
+                isFormValid
+                  ? "bg-gradient-to-r from-amber-warm to-amber-glow hover:from-amber-glow hover:to-amber-warm text-midnight hover:scale-105 hover:shadow-lg hover:shadow-amber-warm/30"
+                  : "bg-slate-mid text-slate-light cursor-not-allowed"
+              }`}
             >
               <Play className="w-6 h-6 mr-3" />
               Enter the Arena
             </Button>
           </div>
+          
+          {!isFormValid && (
+            <p className="text-center text-slate-light text-sm mt-4 animate-fade-in-up delay-400">
+              Please provide a job description to continue
+            </p>
+          )}
         </div>
       </div>
     );

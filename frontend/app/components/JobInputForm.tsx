@@ -2,36 +2,49 @@
 
 import { useState, useRef } from "react";
 
+type InputMode = "paste" | "upload";
+
 interface JobInputFormProps {
-  onStart: (jobDescription: string, resumeFile: File | null) => void;
+  onStart: (
+    jobDescription: string,
+    jobDescriptionFile: File | null,
+    resumeText: string,
+    resumeFile: File | null
+  ) => void;
 }
 
 export default function JobInputForm({ onStart }: JobInputFormProps) {
+  // Job description state
   const [jobDescription, setJobDescription] = useState("");
+
+  // Resume state
+  const [resumeInputMode, setResumeInputMode] = useState<InputMode>("upload");
+  const [resumeText, setResumeText] = useState("");
   const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isResumeDragging, setIsResumeDragging] = useState(false);
+  const resumeFileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  // Resume file handlers
+  const handleResumeDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
+    setIsResumeDragging(true);
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleResumeDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
+    setIsResumeDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleResumeDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(false);
+    setIsResumeDragging(false);
     const file = e.dataTransfer.files[0];
     if (file && (file.type === "application/pdf" || file.type.includes("document"))) {
       setResumeFile(file);
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleResumeFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setResumeFile(file);
@@ -41,11 +54,55 @@ export default function JobInputForm({ onStart }: JobInputFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (jobDescription.trim()) {
-      onStart(jobDescription, resumeFile);
+      onStart(
+        jobDescription,
+        null,
+        resumeInputMode === "paste" ? resumeText : "",
+        resumeInputMode === "upload" ? resumeFile : null
+      );
     }
   };
 
   const isValid = jobDescription.trim().length > 0;
+
+  // Toggle button component
+  const InputModeToggle = ({
+    mode,
+    setMode,
+    label,
+  }: {
+    mode: InputMode;
+    setMode: (mode: InputMode) => void;
+    label: string;
+  }) => (
+    <div className="flex items-center gap-2 mb-3">
+      <span className="text-slate-light text-sm">{label}:</span>
+      <div className="flex rounded-lg overflow-hidden glass">
+        <button
+          type="button"
+          onClick={() => setMode("paste")}
+          className={`px-3 py-1.5 text-sm transition-all ${
+            mode === "paste"
+              ? "bg-amber-warm text-midnight font-medium"
+              : "text-slate-light hover:text-ivory"
+          }`}
+        >
+          Paste Text
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("upload")}
+          className={`px-3 py-1.5 text-sm transition-all ${
+            mode === "upload"
+              ? "bg-amber-warm text-midnight font-medium"
+              : "text-slate-light hover:text-ivory"
+          }`}
+        >
+          Upload PDF
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-12">
@@ -91,7 +148,7 @@ export default function JobInputForm({ onStart }: JobInputFormProps) {
             </div>
           </div>
 
-          {/* Resume Upload */}
+          {/* Resume */}
           <div className="animate-fade-in-up delay-200" style={{ opacity: 0 }}>
             <label className="block mb-3">
               <span className="text-ivory font-medium flex items-center gap-2">
@@ -102,66 +159,83 @@ export default function JobInputForm({ onStart }: JobInputFormProps) {
                 <span className="text-slate-light text-sm font-normal">(optional)</span>
               </span>
             </label>
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`relative cursor-pointer rounded-2xl glass p-8 text-center transition-all duration-300 ${
-                isDragging 
-                  ? "ring-2 ring-emerald-accent bg-emerald-accent/10" 
-                  : "hover:bg-white/5"
-              } ${resumeFile ? "ring-2 ring-emerald-accent/50" : ""}`}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".pdf,.doc,.docx"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              {resumeFile ? (
-                <div className="flex items-center justify-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-emerald-accent/20 flex items-center justify-center">
-                    <svg className="w-6 h-6 text-emerald-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <div className="text-left">
-                    <p className="text-ivory font-medium">{resumeFile.name}</p>
-                    <p className="text-slate-light text-sm">
-                      {(resumeFile.size / 1024).toFixed(1)} KB
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setResumeFile(null);
-                    }}
-                    className="ml-4 p-2 rounded-lg hover:bg-white/10 transition-colors"
-                  >
-                    <svg className="w-5 h-5 text-slate-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+            
+            <InputModeToggle mode={resumeInputMode} setMode={setResumeInputMode} label="Input method" />
+            
+            {resumeInputMode === "paste" ? (
+              <div className="relative group">
+                <textarea
+                  value={resumeText}
+                  onChange={(e) => setResumeText(e.target.value)}
+                  placeholder="Paste your resume content here. Include your experience, skills, education, and achievements..."
+                  className="w-full h-48 px-5 py-4 rounded-2xl glass text-ivory placeholder:text-slate-light/50 resize-none focus:outline-none focus:ring-2 focus:ring-emerald-accent/50 transition-all duration-300"
+                />
+                <div className="absolute bottom-4 right-4 text-xs text-slate-light">
+                  {resumeText.length} characters
                 </div>
-              ) : (
-                <>
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-mid/50 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-slate-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
+              </div>
+            ) : (
+              <div
+                onDragOver={handleResumeDragOver}
+                onDragLeave={handleResumeDragLeave}
+                onDrop={handleResumeDrop}
+                onClick={() => resumeFileInputRef.current?.click()}
+                className={`relative cursor-pointer rounded-2xl glass p-8 text-center transition-all duration-300 ${
+                  isResumeDragging 
+                    ? "ring-2 ring-emerald-accent bg-emerald-accent/10" 
+                    : "hover:bg-white/5"
+                } ${resumeFile ? "ring-2 ring-emerald-accent/50" : ""}`}
+              >
+                <input
+                  ref={resumeFileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={handleResumeFileSelect}
+                  className="hidden"
+                />
+                {resumeFile ? (
+                  <div className="flex items-center justify-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-emerald-accent/20 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-emerald-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <div className="text-left">
+                      <p className="text-ivory font-medium">{resumeFile.name}</p>
+                      <p className="text-slate-light text-sm">
+                        {(resumeFile.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setResumeFile(null);
+                      }}
+                      className="ml-4 p-2 rounded-lg hover:bg-white/10 transition-colors"
+                    >
+                      <svg className="w-5 h-5 text-slate-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
-                  <p className="text-ivory mb-1">
-                    Drop your resume here or <span className="text-amber-warm">browse</span>
-                  </p>
-                  <p className="text-slate-light text-sm">
-                    PDF, DOC, or DOCX up to 10MB
-                  </p>
-                </>
-              )}
-            </div>
+                ) : (
+                  <>
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-slate-mid/50 flex items-center justify-center">
+                      <svg className="w-8 h-8 text-slate-light" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                    </div>
+                    <p className="text-ivory mb-1">
+                      Drop your resume here or <span className="text-amber-warm">browse</span>
+                    </p>
+                    <p className="text-slate-light text-sm">
+                      PDF, DOC, or DOCX up to 10MB
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Submit Button */}
