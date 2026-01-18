@@ -6,11 +6,11 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-    # API Keys
-    openrouter_api_key: str = ""
+    # API Keys (required)
+    openrouter_api_key: str
 
-    # OpenRouter Settings
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # OpenRouter Settings (required)
+    openrouter_base_url: str
 
     # Interviewer Model (generates questions)
     interviewer_model: str = "google/gemini-3-flash-preview"
@@ -25,11 +25,8 @@ class Settings(BaseSettings):
     debug: bool = False
     log_level: str = "INFO"
 
-    # CORS Settings
-    cors_origins: list[str] = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-    ]
+    # CORS Settings (required - comma-separated list)
+    cors_origins: list[str]
 
     model_config = {
         "env_file": ".env",

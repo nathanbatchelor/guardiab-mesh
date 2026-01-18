@@ -206,11 +206,8 @@ export default function InterviewArena() {
       
       if (resumeFile) {
         formData.append("resume_file", resumeFile);
-      } else if (resumeText.trim()) {
-        formData.append("resume_text", resumeText);
       } else {
-        // If no resume provided, send empty text (resume is optional per UI)
-        formData.append("resume_text", "No resume provided");
+        formData.append("resume_text", resumeText);
       }
 
       // Call the backend to generate the interview question
@@ -354,8 +351,9 @@ export default function InterviewArena() {
     setResumeTextForCompetition("");
   };
 
-  // Check if form is valid
-  const isFormValid = jobDescription.trim().length > 0;
+  // Check if form is valid - both job description and resume are required
+  const hasResume = resumeFile !== null || resumeText.trim().length > 0;
+  const isFormValid = jobDescription.trim().length > 0 && hasResume;
 
   if (!isStarted) {
     return (
@@ -446,7 +444,7 @@ export default function InterviewArena() {
                   value={jobDescription}
                   onChange={(e) => setJobDescription(e.target.value)}
                   placeholder="Paste the job description here... The Interviewer will tailor questions to this specific role and requirements."
-                  className="min-h-[250px] bg-slate-deep/50 border-slate-mid/50 text-pearl placeholder:text-slate-light/50 resize-none"
+                  className="h-[250px] bg-slate-deep/50 border-slate-mid/50 text-pearl placeholder:text-slate-light/50 resize-none overflow-y-auto"
                 />
               </CardContent>
             </Card>
@@ -458,9 +456,7 @@ export default function InterviewArena() {
                   <FileText className="w-5 h-5 text-amber-warm" />
                   <h2 className="font-heading text-xl text-pearl">
                     Your Resume
-                    <span className="text-slate-light text-sm font-normal ml-2">
-                      (optional)
-                    </span>
+                    <span className="text-rose-400 ml-1">*</span>
                   </h2>
                 </div>
                 <p className="text-sm text-slate-light">
@@ -480,7 +476,7 @@ export default function InterviewArena() {
                     value={resumeText}
                     onChange={(e) => setResumeText(e.target.value)}
                     placeholder="Paste your resume content here... Include your experience, skills, education, and achievements."
-                    className="min-h-[220px] bg-slate-deep/50 border-slate-mid/50 text-pearl placeholder:text-slate-light/50 resize-none"
+                    className="h-[220px] bg-slate-deep/50 border-slate-mid/50 text-pearl placeholder:text-slate-light/50 resize-none overflow-y-auto"
                   />
                 ) : (
                   <div
@@ -585,7 +581,11 @@ export default function InterviewArena() {
           
           {!isFormValid && !isLoading && (
             <p className="text-center text-slate-light text-sm mt-4 animate-fade-in-up delay-400">
-              Please provide a job description to continue
+              {!jobDescription.trim() && !hasResume
+                ? "Please provide a job description and resume to continue"
+                : !jobDescription.trim()
+                ? "Please provide a job description to continue"
+                : "Please provide a resume to continue"}
             </p>
           )}
 
